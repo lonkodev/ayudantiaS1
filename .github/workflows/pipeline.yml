@@ -18,6 +18,8 @@ jobs:
       - name: Preparar funciones de comprobación
         run: |
           cat > /tmp/funciones.sh <<'EOF'
+          PROYECTO=$(docker compose config --format json | jq -r .name)
+          VOLUMEN="${PROYECTO}_datos-db"
           total_web() {
             curl -s --retry 15 --retry-connrefused --retry-delay 2 http://localhost:8080 \
               | grep -o 'id="total">[0-9]*' | grep -o '[0-9]*$'
@@ -43,7 +45,9 @@ jobs:
 
       - name: "2. Construcción de la imagen (10 pts)"
         id: p2
-        run: docker build -t evaluacion2-app ./app
+        run: |
+          source /tmp/funciones.sh
+          docker build -t "${PROYECTO}-app" ./app
 
       - name: "3. Levantamiento de la solución (15 pts)"
         id: p3
@@ -77,9 +81,10 @@ jobs:
       - name: "7. Eliminar contenedores conservando el volumen (10 pts)"
         id: p7
         run: |
+          source /tmp/funciones.sh
           docker compose down
-          docker ps -a --filter "name=evaluacion2" --format '{{.Names}}' | grep . && { echo "Quedaron contenedores"; exit 1; } || true
-          docker volume inspect evaluacion2_datos-db > /dev/null || { echo "El volumen no existe"; exit 1; }
+          docker ps -a --filter "label=com.docker.compose.project=$PROYECTO" --format '{{.Names}}' | grep . && { echo "Quedaron contenedores"; exit 1; } || true
+          docker volume inspect "$VOLUMEN" > /dev/null || { echo "El volumen no existe"; exit 1; }
           echo "Volumen conservado"
 
       - name: "8. Persistencia después de recrear (15 pts)"
@@ -92,8 +97,9 @@ jobs:
       - name: "9. Eliminación del volumen (5 pts)"
         id: p9
         run: |
+          source /tmp/funciones.sh
           docker compose down -v
-          docker volume inspect evaluacion2_datos-db > /dev/null 2>&1 && { echo "El volumen sigue existiendo"; exit 1; } || echo "Volumen eliminado"
+          docker volume inspect "$VOLUMEN" > /dev/null 2>&1 && { echo "El volumen sigue existiendo"; exit 1; } || echo "Volumen eliminado"
 
       - name: "10. Reinicialización desde init.sql (10 pts)"
         id: p10
